@@ -227,19 +227,6 @@ pub extern "C" fn rs_http2_tx_get_next_window(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rs_http2_parse_settingsid(
-    str: *const std::os::raw::c_char,
-) -> std::os::raw::c_int {
-    let ft_name: &CStr = CStr::from_ptr(str); //unsafe
-    if let Ok(s) = ft_name.to_str() {
-        if let Ok(x) = parser::HTTP2SettingsId::from_str(s) {
-            return x as i32;
-        }
-    }
-    return -1;
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn rs_http2_detect_settingsctx_parse(
     str: *const std::os::raw::c_char,
 ) -> *mut std::os::raw::c_void {
@@ -473,6 +460,145 @@ pub unsafe extern "C" fn rs_http2_tx_get_header_name(
                 }
                 _ => {}
             }
+        }
+    }
+    return 0;
+}
+
+fn http2_blocks_get_header_value<'a>(
+    blocks: &'a Vec<parser::HTTP2FrameHeaderBlock>, name: &str,
+) -> Result<&'a [u8], ()> {
+    for j in 0..blocks.len() {
+        if blocks[j].name == name.as_bytes().to_vec() {
+            return Ok(&blocks[j].value);
+        }
+    }
+    return Err(());
+}
+
+fn http2_frames_get_header_value<'a>(
+    frames: &'a Vec<HTTP2Frame>, name: &str,
+) -> Result<&'a [u8], ()> {
+    for i in 0..frames.len() {
+        match &frames[i].data {
+            HTTP2FrameTypeData::HEADERS(hd) => {
+                if let Ok(value) = http2_blocks_get_header_value(&hd.blocks, name) {
+                    return Ok(value);
+                }
+            }
+            HTTP2FrameTypeData::PUSHPROMISE(hd) => {
+                if let Ok(value) = http2_blocks_get_header_value(&hd.blocks, name) {
+                    return Ok(value);
+                }
+            }
+            HTTP2FrameTypeData::CONTINUATION(hd) => {
+                if let Ok(value) = http2_blocks_get_header_value(&hd.blocks, name) {
+                    return Ok(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    return Err(());
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_uri(
+    tx: &mut HTTP2Transaction, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if let Ok(value) = http2_frames_get_header_value(&tx.frames_ts, ":path") {
+        *buffer = value.as_ptr(); //unsafe
+        *buffer_len = value.len() as u32;
+        return 1;
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_method(
+    tx: &mut HTTP2Transaction, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if let Ok(value) = http2_frames_get_header_value(&tx.frames_ts, ":method") {
+        *buffer = value.as_ptr(); //unsafe
+        *buffer_len = value.len() as u32;
+        return 1;
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_host(
+    tx: &mut HTTP2Transaction, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if let Ok(value) = http2_frames_get_header_value(&tx.frames_ts, ":authority") {
+        *buffer = value.as_ptr(); //unsafe
+        *buffer_len = value.len() as u32;
+        return 1;
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_useragent(
+    tx: &mut HTTP2Transaction, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if let Ok(value) = http2_frames_get_header_value(&tx.frames_ts, "user-agent") {
+        *buffer = value.as_ptr(); //unsafe
+        *buffer_len = value.len() as u32;
+        return 1;
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_status(
+    tx: &mut HTTP2Transaction, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if let Ok(value) = http2_frames_get_header_value(&tx.frames_tc, ":status") {
+        *buffer = value.as_ptr(); //unsafe
+        *buffer_len = value.len() as u32;
+        return 1;
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_cookie(
+    tx: &mut HTTP2Transaction, direction: u8, buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    if direction == STREAM_TOSERVER {
+        if let Ok(value) = http2_frames_get_header_value(&tx.frames_ts, "cookie") {
+            *buffer = value.as_ptr(); //unsafe
+            *buffer_len = value.len() as u32;
+            return 1;
+        }
+    } else {
+        if let Ok(value) = http2_frames_get_header_value(&tx.frames_tc, "set-cookie") {
+            *buffer = value.as_ptr(); //unsafe
+            *buffer_len = value.len() as u32;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn rs_http2_tx_get_header_value(
+    tx: &mut HTTP2Transaction, direction: u8, strname: *const std::os::raw::c_char,
+    buffer: *mut *const u8, buffer_len: *mut u32,
+) -> u8 {
+    let hname: &CStr = CStr::from_ptr(strname); //unsafe
+    if let Ok(s) = hname.to_str() {
+        let frames = if direction == STREAM_TOSERVER {
+            &tx.frames_ts
+        } else {
+            &tx.frames_tc
+        };
+        if let Ok(value) = http2_frames_get_header_value(frames, &s.to_lowercase()) {
+            *buffer = value.as_ptr(); //unsafe
+            *buffer_len = value.len() as u32;
+            return 1;
         }
     }
     return 0;

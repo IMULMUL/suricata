@@ -1,4 +1,4 @@
-/* Copyright (C) 2020 Open Information Security Foundation
+/* Copyright (C) 2020-2021 Open Information Security Foundation
  *
  * You can copy, redistribute or modify this Program under the terms of
  * the GNU General Public License version 2 as published by the Free
@@ -35,6 +35,7 @@
 
 #include "flow.h"
 
+#include "util-validate.h"
 #include "util-unittest.h"
 #include "util-debug.h"
 
@@ -183,6 +184,8 @@ static inline bool IsHeaderLengthConsistentWithOptions(const GeneveHeader *genev
  */
 int DecodeGeneve(ThreadVars *tv, DecodeThreadVars *dtv, Packet *p, const uint8_t *pkt, uint32_t len)
 {
+    DEBUG_VALIDATE_BUG_ON(pkt == NULL);
+
     const GeneveHeader *geneve_hdr = (const GeneveHeader *)pkt;
 
     uint16_t eth_type, geneve_hdr_len;
@@ -194,6 +197,9 @@ int DecodeGeneve(ThreadVars *tv, DecodeThreadVars *dtv, Packet *p, const uint8_t
 
     if (unlikely(len < GENEVE_MIN_HEADER_LEN))
         return TM_ECODE_FAILED;
+    if (!PacketIncreaseCheckLayers(p)) {
+        return TM_ECODE_FAILED;
+    }
 
     /* Specific Geneve header field validation */
     geneve_hdr_len = GENEVE_TOTAL_HEADER_LEN(geneve_hdr);

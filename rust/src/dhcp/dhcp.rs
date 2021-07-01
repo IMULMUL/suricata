@@ -129,6 +129,7 @@ impl Drop for DHCPTransaction {
 export_tx_get_detect_state!(rs_dhcp_tx_get_detect_state, DHCPTransaction);
 export_tx_set_detect_state!(rs_dhcp_tx_set_detect_state, DHCPTransaction);
 
+#[derive(Default)]
 pub struct DHCPState {
     // Internal transaction ID.
     tx_id: u64,
@@ -140,12 +141,8 @@ pub struct DHCPState {
 }
 
 impl DHCPState {
-    pub fn new() -> DHCPState {
-        return DHCPState {
-            tx_id: 0,
-            transactions: Vec::new(),
-            events: 0,
-        };
+    pub fn new() -> Self {
+        Default::default()
     }
 
     pub fn parse(&mut self, input: &[u8]) -> bool {
@@ -250,13 +247,6 @@ pub extern "C" fn rs_dhcp_probing_parser(_flow: *const Flow,
 pub extern "C" fn rs_dhcp_tx_get_alstate_progress(_tx: *mut std::os::raw::c_void,
                                                   _direction: u8) -> std::os::raw::c_int {
     // As this is a stateless parser, simply use 1.
-    return 1;
-}
-
-#[no_mangle]
-pub extern "C" fn rs_dhcp_state_progress_completion_status(
-    _direction: u8) -> std::os::raw::c_int {
-    // The presence of a transaction means we are complete.
     return 1;
 }
 
@@ -423,7 +413,8 @@ pub unsafe extern "C" fn rs_dhcp_register_parser() {
         parse_tc           : rs_dhcp_parse,
         get_tx_count       : rs_dhcp_state_get_tx_count,
         get_tx             : rs_dhcp_state_get_tx,
-        tx_get_comp_st     : rs_dhcp_state_progress_completion_status,
+        tx_comp_st_ts      : 1,
+        tx_comp_st_tc      : 1,
         tx_get_progress    : rs_dhcp_tx_get_alstate_progress,
         get_de_state       : rs_dhcp_tx_get_detect_state,
         set_de_state       : rs_dhcp_tx_set_detect_state,

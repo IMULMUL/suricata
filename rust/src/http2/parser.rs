@@ -69,7 +69,7 @@ impl std::str::FromStr for HTTP2FrameType {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub struct HTTP2FrameHeader {
     //we could add detection on (GOAWAY) additional data
     pub length: u32,
@@ -142,7 +142,7 @@ impl std::str::FromStr for HTTP2ErrorCode {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FrameGoAway {
     pub errorcode: u32, //HTTP2ErrorCode
 }
@@ -154,7 +154,7 @@ named!(pub http2_parse_frame_goaway<HTTP2FrameGoAway>,
     )
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FrameRstStream {
     pub errorcode: u32, ////HTTP2ErrorCode
 }
@@ -166,7 +166,7 @@ named!(pub http2_parse_frame_rststream<HTTP2FrameRstStream>,
     )
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FramePriority {
     pub exclusive: u8,
     pub dependency: u32,
@@ -182,7 +182,7 @@ named!(pub http2_parse_frame_priority<HTTP2FramePriority>,
     )
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FrameWindowUpdate {
     pub reserved: u8,
     pub sizeinc: u32,
@@ -196,7 +196,7 @@ named!(pub http2_parse_frame_windowupdate<HTTP2FrameWindowUpdate>,
     )
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FrameHeadersPriority {
     pub exclusive: u8,
     pub dependency: u32,
@@ -562,9 +562,11 @@ fn http2_parse_headers_block_dynamic_size<'a>(
         ));
     }
     if (maxsize2 as usize) < dyn_headers.max_size {
-        dyn_headers.max_size = maxsize2 as usize;
+        //dyn_headers.max_size is updated later with all headers
         //may evict entries
-        while dyn_headers.current_size > dyn_headers.max_size {
+        while dyn_headers.current_size > (maxsize2 as usize) && dyn_headers.table.len() > 0 {
+            // we check dyn_headers.table as we may be in best effort
+            // because the previous maxsize was too big for us to retain all the headers
             dyn_headers.current_size -=
                 32 + dyn_headers.table[0].name.len() + dyn_headers.table[0].value.len();
             dyn_headers.table.remove(0);
@@ -598,7 +600,7 @@ fn http2_parse_headers_block<'a>(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HTTP2FrameHeaders {
     pub padlength: Option<u8>,
     pub priority: Option<HTTP2FrameHeadersPriority>,
@@ -647,7 +649,7 @@ pub fn http2_parse_frame_headers<'a>(
     ));
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HTTP2FramePushPromise {
     pub padlength: Option<u8>,
     pub reserved: u8,
@@ -688,7 +690,7 @@ pub fn http2_parse_frame_push_promise<'a>(
     ));
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HTTP2FrameContinuation {
     pub blocks: Vec<HTTP2FrameHeaderBlock>,
 }
@@ -896,7 +898,7 @@ named!(pub detect_parse_u64<&str,DetectU64Data>,
     )
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct HTTP2FrameSettings {
     pub id: HTTP2SettingsId,
     pub value: u32,

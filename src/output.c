@@ -54,6 +54,7 @@
 #include "log-httplog.h"
 #include "output-json-http.h"
 #include "output-json-dns.h"
+#include "output-json-modbus.h"
 #include "log-tlslog.h"
 #include "log-tlsstore.h"
 #include "output-json-tls.h"
@@ -69,7 +70,7 @@
 #include "output-json-ftp.h"
 #include "output-json-tftp.h"
 #include "output-json-smb.h"
-#include "output-json-ikev2.h"
+#include "output-json-ike.h"
 #include "output-json-krb5.h"
 #include "output-json-dhcp.h"
 #include "output-json-snmp.h"
@@ -1071,6 +1072,8 @@ void OutputRegisterLoggers(void)
     OutputFilestoreRegister();
     /* dns */
     JsonDnsLogRegister();
+    /* modbus */
+    JsonModbusLogRegister();
     /* tcp streaming data */
     LogTcpDataLogRegister();
     /* log stats */
@@ -1096,8 +1099,8 @@ void OutputRegisterLoggers(void)
     JsonFTPLogRegister();
     /* SMB JSON logger. */
     JsonSMBLogRegister();
-    /* IKEv2 JSON logger. */
-    JsonIKEv2LogRegister();
+    /* IKE JSON logger. */
+    JsonIKELogRegister();
     /* KRB5 JSON logger. */
     JsonKRB5LogRegister();
     /* DHCP JSON logger. */

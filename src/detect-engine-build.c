@@ -28,6 +28,7 @@
 #include "detect-engine-port.h"
 #include "detect-engine-prefilter.h"
 #include "detect-engine-proto.h"
+#include "detect-engine-threshold.h"
 
 #include "detect-dsize.h"
 #include "detect-tcp-flags.h"
@@ -1378,7 +1379,7 @@ int SigAddressPrepareStage1(DetectEngineCtx *de_ctx)
                 SigMatch *sm = s->init_data->smlists[i];
                 while (sm != NULL) {
                     if (sigmatch_table[sm->type].SupportsPrefilter != NULL) {
-                        if (sigmatch_table[sm->type].SupportsPrefilter(s) == TRUE) {
+                        if (sigmatch_table[sm->type].SupportsPrefilter(s)) {
                             prefilter_list = MIN(prefilter_list, sm->type);
                         }
                     }
@@ -1943,6 +1944,8 @@ int SigGroupBuild(DetectEngineCtx *de_ctx)
 
     SCProfilingRuleInitCounters(de_ctx);
 #endif
+
+    ThresholdHashAllocate(de_ctx);
 
     if (!DetectEngineMultiTenantEnabled()) {
         VarNameStoreActivateStaging();

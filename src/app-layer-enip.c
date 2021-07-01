@@ -66,15 +66,6 @@ static int ENIPGetAlstateProgress(void *tx, uint8_t direction)
     return 1;
 }
 
-/** \brief get value for 'complete' status in ENIP
- *
- *  For ENIP we use a simple bool.
- */
-static int ENIPGetAlstateProgressCompletionStatus(uint8_t direction)
-{
-    return 1;
-}
-
 static DetectEngineState *ENIPGetTxDetectState(void *vtx)
 {
     ENIPTransaction *tx = (ENIPTransaction *)vtx;
@@ -368,7 +359,7 @@ static AppLayerResult ENIPParse(Flow *f, void *state, AppLayerParserState *pstat
     SCReturnStruct(APP_LAYER_OK);
 }
 
-
+#define ENIP_LEN_REGISTER_SESSION 4 // protocol u16, options u16
 
 static uint16_t ENIPProbingParser(Flow *f, uint8_t direction,
         const uint8_t *input, uint32_t input_len, uint8_t *rdir)
@@ -380,43 +371,90 @@ static uint16_t ENIPProbingParser(Flow *f, uint8_t direction,
         return ALPROTO_UNKNOWN;
     }
     uint16_t cmd;
+    uint16_t enip_len;
     uint32_t status;
-    int ret = ByteExtractUint16(&cmd, BYTE_LITTLE_ENDIAN, sizeof(uint16_t),
-                                (const uint8_t *) (input));
+    uint32_t option;
+    uint16_t nbitems;
+
+    int ret = ByteExtractUint16(
+            &enip_len, BYTE_LITTLE_ENDIAN, sizeof(uint16_t), (const uint8_t *)(input + 2));
+    if (ret < 0) {
+        return ALPROTO_FAILED;
+    }
+    if (enip_len < sizeof(ENIPEncapHdr)) {
+        return ALPROTO_FAILED;
+    }
+    ret = ByteExtractUint32(
+            &status, BYTE_LITTLE_ENDIAN, sizeof(uint32_t), (const uint8_t *)(input + 8));
+    if (ret < 0) {
+        return ALPROTO_FAILED;
+    }
+    switch (status) {
+        case SUCCESS:
+        case INVALID_CMD:
+        case NO_RESOURCES:
+        case INCORRECT_DATA:
+        case INVALID_SESSION:
+        case INVALID_LENGTH:
+        case UNSUPPORTED_PROT_REV:
+        case ENCAP_HEADER_ERROR:
+            break;
+        default:
+            return ALPROTO_FAILED;
+    }
+    ret = ByteExtractUint16(&cmd, BYTE_LITTLE_ENDIAN, sizeof(uint16_t), (const uint8_t *)(input));
     if(ret < 0) {
         return ALPROTO_FAILED;
     }
+    ret = ByteExtractUint32(
+            &option, BYTE_LITTLE_ENDIAN, sizeof(uint32_t), (const uint8_t *)(input + 20));
+    if (ret < 0) {
+        return ALPROTO_FAILED;
+    }
+
     //ok for all the known commands
     switch(cmd) {
         case NOP:
+            if (option != 0) {
+                return ALPROTO_FAILED;
+            }
+            break;
+        case REGISTER_SESSION:
+            if (enip_len != ENIP_LEN_REGISTER_SESSION) {
+                return ALPROTO_FAILED;
+            }
+            break;
+        case UNREGISTER_SESSION:
+            if (enip_len != ENIP_LEN_REGISTER_SESSION && enip_len != 0) {
+                // 0 for request and 4 for response
+                return ALPROTO_FAILED;
+            }
+            break;
         case LIST_SERVICES:
         case LIST_IDENTITY:
-        case LIST_INTERFACES:
-        case REGISTER_SESSION:
-        case UNREGISTER_SESSION:
         case SEND_RR_DATA:
         case SEND_UNIT_DATA:
         case INDICATE_STATUS:
         case CANCEL:
-            ret = ByteExtractUint32(&status, BYTE_LITTLE_ENDIAN,
-                                    sizeof(uint32_t),
-                                    (const uint8_t *) (input + 8));
+            break;
+        case LIST_INTERFACES:
+            if (input_len < sizeof(ENIPEncapHdr) + 2) {
+                SCLogDebug("length too small to be a ENIP LIST_INTERFACES");
+                return ALPROTO_UNKNOWN;
+            }
+            ret = ByteExtractUint16(
+                    &nbitems, BYTE_LITTLE_ENDIAN, sizeof(uint16_t), (const uint8_t *)(input));
             if(ret < 0) {
                 return ALPROTO_FAILED;
             }
-            switch(status) {
-                case SUCCESS:
-                case INVALID_CMD:
-                case NO_RESOURCES:
-                case INCORRECT_DATA:
-                case INVALID_SESSION:
-                case INVALID_LENGTH:
-                case UNSUPPORTED_PROT_REV:
-                case ENCAP_HEADER_ERROR:
-                    return ALPROTO_ENIP;
+            if (enip_len < sizeof(ENIPEncapHdr) + 2 * (size_t)nbitems) {
+                return ALPROTO_FAILED;
             }
+            break;
+        default:
+            return ALPROTO_FAILED;
     }
-    return ALPROTO_FAILED;
+    return ALPROTO_ENIP;
 }
 
 /**
@@ -486,7 +524,7 @@ void RegisterENIPUDPParsers(void)
         AppLayerParserRegisterTxFreeFunc(IPPROTO_UDP, ALPROTO_ENIP, ENIPStateTransactionFree);
 
         AppLayerParserRegisterGetStateProgressFunc(IPPROTO_UDP, ALPROTO_ENIP, ENIPGetAlstateProgress);
-        AppLayerParserRegisterGetStateProgressCompletionStatus(ALPROTO_ENIP, ENIPGetAlstateProgressCompletionStatus);
+        AppLayerParserRegisterStateProgressCompletionStatus(ALPROTO_ENIP, 1, 1);
 
         AppLayerParserRegisterGetEventInfo(IPPROTO_UDP, ALPROTO_ENIP, ENIPStateGetEventInfo);
         AppLayerParserRegisterGetEventInfoById(IPPROTO_UDP, ALPROTO_ENIP, ENIPStateGetEventInfoById);
@@ -566,7 +604,7 @@ void RegisterENIPTCPParsers(void)
         AppLayerParserRegisterTxFreeFunc(IPPROTO_TCP, ALPROTO_ENIP, ENIPStateTransactionFree);
 
         AppLayerParserRegisterGetStateProgressFunc(IPPROTO_TCP, ALPROTO_ENIP, ENIPGetAlstateProgress);
-        AppLayerParserRegisterGetStateProgressCompletionStatus(ALPROTO_ENIP, ENIPGetAlstateProgressCompletionStatus);
+        AppLayerParserRegisterStateProgressCompletionStatus(ALPROTO_ENIP, 1, 1);
 
         AppLayerParserRegisterGetEventInfo(IPPROTO_TCP, ALPROTO_ENIP, ENIPStateGetEventInfo);
 
@@ -626,7 +664,7 @@ static int ALDecodeENIPTest(void)
     f.proto     = IPPROTO_TCP;
     f.alproto   = ALPROTO_ENIP;
 
-    StreamTcpInitConfig(TRUE);
+    StreamTcpInitConfig(true);
 
     int r = AppLayerParserParse(NULL, alp_tctx, &f, ALPROTO_ENIP, STREAM_TOSERVER,
             listIdentity, sizeof(listIdentity));
@@ -641,7 +679,7 @@ static int ALDecodeENIPTest(void)
     FAIL_IF(tx->header.command != 99);
 
     AppLayerParserThreadCtxFree(alp_tctx);
-    StreamTcpFreeConfig(TRUE);
+    StreamTcpFreeConfig(true);
     FLOW_DESTROY(&f);
 
     PASS;

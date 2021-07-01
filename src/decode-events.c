@@ -403,6 +403,16 @@ const struct DecodeEvents_ DEvents[] = {
             IEEE8021AH_HEADER_TOO_SMALL,
     },
 
+    /* VNTAG EVENTS */
+    {
+            "decoder.vntag.header_too_small",
+            VNTAG_HEADER_TOO_SMALL,
+    },
+    {
+            "decoder.vntag.unknown_type",
+            VNTAG_UNKNOWN_TYPE,
+    },
+
     /* RAW EVENTS */
     {
             "decoder.ipraw.invalid_ip_version",
@@ -423,6 +433,12 @@ const struct DecodeEvents_ DEvents[] = {
     {
             "decoder.sctp.pkt_too_small",
             SCTP_PKT_TOO_SMALL,
+    },
+
+    /* ESP EVENTS */
+    {
+            "decoder.esp.pkt_too_small",
+            ESP_PKT_TOO_SMALL,
     },
 
     /* Fragmentation reasembly events. */
@@ -533,6 +549,36 @@ const struct DecodeEvents_ DEvents[] = {
     {
             "decoder.chdlc.pkt_too_small",
             CHDLC_PKT_TOO_SMALL,
+    },
+
+    /* NSH events */
+    {
+            "decoder.nsh.header_too_small",
+            NSH_HEADER_TOO_SMALL,
+    },
+    {
+            "decoder.nsh.unsupported_version",
+            NSH_UNSUPPORTED_VERSION,
+    },
+    {
+            "decoder.nsh.bad_header_length",
+            NSH_BAD_HEADER_LENGTH,
+    },
+    {
+            "decoder.nsh.reserved_type",
+            NSH_RESERVED_TYPE,
+    },
+    {
+            "decoder.nsh.unsupported_type",
+            NSH_UNSUPPORTED_TYPE,
+    },
+    {
+            "decoder.nsh.unknown_payload",
+            NSH_UNKNOWN_PAYLOAD,
+    },
+    {
+            "decoder.too_many_layers",
+            GENERIC_TOO_MANY_LAYERS,
     },
 
     /* STREAM EVENTS */
